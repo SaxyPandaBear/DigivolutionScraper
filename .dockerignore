@@ -1,0 +1,10 @@
+bin/
+include/
+lib/
+pyvenv.cfg
+.git/
+__pycache__/
+**/__pycache__/
+*.pyc
+docker-compose.yml
+README.md

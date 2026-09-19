@@ -3,34 +3,80 @@ services:
     image: mongo:7
     container_name: digimon_mongo
     restart: unless-stopped
+    # cap WiredTiger's cache (default is ~50% of host RAM minus 1GB, which is
+    # far too greedy on a resource-constrained host) and the container itself
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384m
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: digimon_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   airflow:
-    image: apache/airflow:3.3.0
+    build: .
     container_name: digimon_airflow
     restart: unless-stopped
     depends_on:
-      - mongo
+      mongo:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     environment:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      # the scraper's own runtime deps on top of the base Airflow image
-      _PIP_ADDITIONAL_REQUIREMENTS: "requests==2.34.2 beautifulsoup4==4.15.0 bs4==0.0.2 pymongo==4.18.1"
+      # new DAGs are paused by default; without this a manual/scheduled trigger
+      # sits in `queued` forever with zero task instances until someone
+      # remembers to unpause it by hand
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      # Postgres instead of the default sqlite metadata db - sqlite is a single
+      # writer, so every task/dag-run state transition across the standalone
+      # processes (scheduler, dag-processor, api-server) serializes through it
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      # Postgres (unlike sqlite) handles concurrent writers fine, so a few
+      # mapped task instances can now run side by side; kept modest since each
+      # one also fans out MAX_CONCURRENT_REQUESTS requests of its own, and
+      # peak memory - not wall-clock time - is this host's tighter constraint
+      AIRFLOW__CORE__PARALLELISM: "3"
+      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: "3"
+      AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: "1"
       # resolve to the `mongo` service on the compose network instead of localhost
       MONGO_URI: mongodb://mongo:27017
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1.5g
     volumes:
       - airflow_data:/opt/airflow
-      - ./digivolution_dag.py:/opt/airflow/dags/digivolution_dag.py
-      - ./tasks:/opt/airflow/dags/tasks
-      - ./evolutions.py:/opt/airflow/dags/evolutions.py
-      - ./modes.py:/opt/airflow/dags/modes.py
-      - ./names.py:/opt/airflow/dags/names.py
     ports:
       - "8080:8080"
     command: standalone
 
 volumes:
   mongo_data:
+  postgres_data:
   airflow_data:

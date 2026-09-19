@@ -1,6 +1,6 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
-from time import sleep
 
 import requests
 from airflow.sdk import task
@@ -16,6 +16,14 @@ parent_tag = "p-ref"  # encompassing class tag
 en_name_tag = "c-titleSet__main"  # localized English name
 info_tag = "p-ref__info"  # section that has details like level, type, attribute, and special move(s)
 profile_tag = "p-ref__txt"  # description of the Digimon
+
+# the site is I/O-bound to fetch from, not CPU-bound to parse, so fan requests
+# within a batch out across threads instead of fetching sequentially. Kept
+# modest (rather than higher) since each mapped task instance runs concurrently
+# with others (AIRFLOW__CORE__PARALLELISM), and peak memory is the tighter
+# constraint on a resource-limited host, not wall-clock time.
+MAX_CONCURRENT_REQUESTS = 5
+REQUEST_TIMEOUT = (5, 15)  # (connect, read) seconds - guards against a hung request tying up a worker slot
 
 
 # input is in the form <img src="../cimages/digimon/bearcatmon.jpg" alt="">
@@ -47,10 +55,11 @@ def clean_attribute(s: str) -> str:
     return s
 
 
-def _scrape_one(name: str, mappings: dict[str, dict[str, list[str]]], logger: logging.Logger) -> dict:
+def _scrape_one(session: requests.Session, name: str, mappings: dict[str, dict[str, list[str]]], logger: logging.Logger) -> dict:
     digimon_url = f"{url_template}{name}"
     logger.info(f"Checking {digimon_url}...")
-    r = requests.get(digimon_url)
+    r = session.get(digimon_url, timeout=REQUEST_TIMEOUT)
+    r.raise_for_status()
     soup = BeautifulSoup(r.text, features="html.parser")
 
     digimon = soup.find(class_=parent_tag)
@@ -112,13 +121,17 @@ def scrape_digimon(names: list[str], mappings: dict[str, dict[str, list[str]]], 
     results = []
     failures = []
 
-    for name in names:
-        try:
-            results.append(_scrape_one(name, mappings, logger))
-        except ValueError as e:
-            logger.error(str(e))
-            failures.append(name)
-        sleep(0.03)  # wait for rate-limiting
+    # one Session per batch reuses its connection pool (keep-alive) across every
+    # request in the batch instead of paying a fresh TCP+TLS handshake each time
+    with requests.Session() as session, ThreadPoolExecutor(max_workers=MAX_CONCURRENT_REQUESTS) as executor:
+        future_to_name = {executor.submit(_scrape_one, session, name, mappings, logger): name for name in names}
+        for future in as_completed(future_to_name):
+            name = future_to_name[future]
+            try:
+                results.append(future.result())
+            except (ValueError, requests.exceptions.RequestException) as e:
+                logger.error(f"Failed to scrape {name}: {e}")
+                failures.append(name)
 
     if failures:
         raise ValueError(f"Failed to scrape {len(failures)} Digimon in batch: {failures}")

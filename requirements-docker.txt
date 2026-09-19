@@ -1,0 +1,9 @@
+# Runtime deps the DAG needs on top of what the apache/airflow base image
+# already ships. Kept separate from requirements.txt (a frozen snapshot of
+# the full local dev venv, including Airflow itself and all its transitive
+# deps) so the image build doesn't reinstall/collide with what the base
+# image already carries.
+beautifulsoup4==4.15.0
+bs4==0.0.2
+pymongo==4.18.1
+requests==2.34.2
