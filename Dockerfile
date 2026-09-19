@@ -14,3 +14,5 @@ COPY --chown=airflow:root evolutions.py /opt/airflow/dags/evolutions.py
 COPY --chown=airflow:root modes.py /opt/airflow/dags/modes.py
 COPY --chown=airflow:root names.py /opt/airflow/dags/names.py
 COPY --chown=airflow:root tasks/ /opt/airflow/dags/tasks/
+
+CMD ["standalone"]

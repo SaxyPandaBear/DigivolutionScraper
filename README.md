@@ -80,8 +80,10 @@ This starts:
   service's healthcheck before starting.
 - `airflow` — built from the project's own `Dockerfile` (`apache/airflow:3.3.0` plus the extra
   deps in `requirements-docker.txt`, with the DAG source baked in rather than bind-mounted, so the
-  image is fully self-contained and portable). Runs as a single `airflow standalone` container
-  (webserver, scheduler, and triggerer together) on `localhost:8080`, capped at 1.5GB / 1 CPU, with
+  image is fully self-contained and portable). The `standalone` command is set as the image's own
+  `CMD` (not `docker-compose.yml`), so the image runs the same way under any orchestrator, not just
+  Compose. Runs as a single `airflow standalone` container (webserver, scheduler, and triggerer
+  together) on `localhost:8080`, capped at 1.5GB / 1 CPU, with
   `MONGO_URI` and `AIRFLOW__DATABASE__SQL_ALCHEMY_CONN` pointed at their respective services.
   `AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION` is set to `false` so the DAG is immediately
   triggerable (Airflow pauses new DAGs by default otherwise), and DAG concurrency (parallelism,
