@@ -109,4 +109,21 @@ pip install -r requirements.txt
 ```
 
 # Testing
-TBD
+
+```bash
+source bin/activate
+pytest
+```
+
+Runs the fast suite (`tests/unit/` and `tests/test_dag_structure.py`) — pure-function tests, task-level
+tests against mocked HTTP responses (`requests_mock`) and an in-memory MongoDB (`mongomock`), and a
+`DagBag`-based check that `digivolution_dag.py` imports cleanly with the expected tasks and
+dependency edges. No network access or Docker required; this is what should run on every change.
+
+A separate, slow end-to-end test drives the real `docker-compose` stack against the live
+`digimon.net` site and asserts the resulting Mongo collection. It's opt-in since it takes a few
+minutes and depends on the live site being reachable:
+
+```bash
+pytest --run-integration tests/integration/
+```
