@@ -15,4 +15,9 @@ COPY --chown=airflow:root modes.py /opt/airflow/dags/modes.py
 COPY --chown=airflow:root names.py /opt/airflow/dags/names.py
 COPY --chown=airflow:root tasks/ /opt/airflow/dags/tasks/
 
+# alternate entrypoint for a cron-launched, run-to-completion deployment (e.g.
+# Railway Cron Schedule + Custom Start Command) instead of staying up via
+# `standalone`; see scripts/run_dag_once.sh for what it does and why
+COPY --chown=airflow:root scripts/run_dag_once.sh /opt/airflow/scripts/run_dag_once.sh
+
 CMD ["standalone"]

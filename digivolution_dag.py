@@ -38,22 +38,13 @@ digimon_name_batches = [list(batch) for batch in itertools.batched(digimon_names
         "depends_on_past": False,
         "retries": 1,
         "retry_delay": timedelta(minutes=30),
-        # 'queue': 'bash_queue',
-        # 'pool': 'backfill',
-        # 'priority_weight': 10,
-        # 'end_date': datetime(2016, 1, 1),
-        # 'wait_for_downstream': False,
-        # 'execution_timeout': timedelta(seconds=300),
-        # 'on_failure_callback': some_function, # or list of functions
-        # 'on_success_callback': some_other_function, # or list of functions
-        # 'on_retry_callback': another_function, # or list of functions
-        # 'sla_miss_callback': yet_another_function, # or list of functions
-        # 'on_skipped_callback': another_function, #or list of functions
-        # 'trigger_rule': 'all_success'
     },
-    description="A simple tutorial DAG",
-    schedule=timedelta(weeks=4),
-    start_date=datetime(2026, 10, 1, tzinfo=UTC),
+    description="Scrapes Digimon reference data and loads it into MongoDB",
+    # scheduling is owned externally (Railway Cron Schedule triggers a
+    # run-to-completion container via scripts/run_dag_once.sh) rather than
+    # Airflow's own timetable, to avoid keeping a scheduler running 24/7
+    schedule=None,
+    start_date=datetime(2024, 1, 1, tzinfo=UTC),
     catchup=False,
     tags=["digimon"],
 )
