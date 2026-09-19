@@ -2,12 +2,13 @@ import itertools
 import logging
 from datetime import UTC, datetime, timedelta
 
-from airflow.sdk import dag, task
+from airflow.sdk import dag
 
 from evolutions import next_evolutions
 from modes import digimon_modes
 from names import digimon_names
 from tasks.load_to_mongo import load_to_mongo
+from tasks.reconcile_mongo import reconcile_mongo
 from tasks.scrape_digimon import scrape_digimon
 from tasks.validate_references import derive_inverse_relationship, validate_references
 
@@ -36,7 +37,7 @@ digimon_name_batches = [list(batch) for batch in itertools.batched(digimon_names
     default_args={
         "depends_on_past": False,
         "retries": 1,
-        "retry_delay": timedelta(minutes=5),
+        "retry_delay": timedelta(minutes=30),
         # 'queue': 'bash_queue',
         # 'pool': 'backfill',
         # 'priority_weight': 10,
@@ -54,7 +55,7 @@ digimon_name_batches = [list(batch) for batch in itertools.batched(digimon_names
     schedule=timedelta(weeks=4),
     start_date=datetime(2026, 10, 1, tzinfo=UTC),
     catchup=False,
-    tags=["example"],
+    tags=["digimon"],
 )
 def populate_digivolutions():
     t1 = validate_references(logger)
@@ -62,8 +63,9 @@ def populate_digivolutions():
         names=digimon_name_batches
     )
     loaded = load_to_mongo(scraped_digimon, logger)
+    reconciled = reconcile_mongo(scraped_digimon, logger)
 
-    t1 >> scraped_digimon >> loaded
+    t1 >> scraped_digimon >> loaded >> reconciled
 
 
 populate_digivolutions()

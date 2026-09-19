@@ -2,7 +2,7 @@ import logging
 import os
 
 from airflow.sdk import task
-from pymongo import MongoClient
+from pymongo import MongoClient, ReplaceOne
 
 # Connection is fully configurable via environment variables so the same DAG
 # code can run locally (e.g. against the docker-compose MongoDB) or in
@@ -21,13 +21,18 @@ def load_to_mongo(batches: list[list[dict]], logger: logging.Logger) -> int:
     try:
         collection = client[MONGO_DB][MONGO_COLLECTION]
 
-        logger.info(f"Dropping existing {MONGO_DB}.{MONGO_COLLECTION} collection...")
-        collection.drop()
-
         if documents:
-            collection.insert_many(documents)
-
-        logger.info(f"Successfully loaded {len(documents)} Digimon into {MONGO_DB}.{MONGO_COLLECTION}")
+            # each document's `_id` is the Digimon's directory name, which is
+            # what the collection relies on for uniqueness - replace the
+            # existing document for that id, or insert it if it's new.
+            operations = [ReplaceOne({"_id": digimon["_id"]}, digimon, upsert=True) for digimon in documents]
+            result = collection.bulk_write(operations, ordered=False)
+            logger.info(
+                f"Upserted {len(documents)} Digimon into {MONGO_DB}.{MONGO_COLLECTION} "
+                f"({result.upserted_count} inserted, {result.modified_count} updated)"
+            )
+        else:
+            logger.info(f"No Digimon scraped; nothing to upsert into {MONGO_DB}.{MONGO_COLLECTION}")
     finally:
         client.close()
 
