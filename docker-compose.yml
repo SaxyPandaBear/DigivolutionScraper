@@ -1,0 +1,36 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: digimon_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  airflow:
+    image: apache/airflow:3.3.0
+    container_name: digimon_airflow
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      # the scraper's own runtime deps on top of the base Airflow image
+      _PIP_ADDITIONAL_REQUIREMENTS: "requests==2.34.2 beautifulsoup4==4.15.0 bs4==0.0.2 pymongo==4.18.1"
+      # resolve to the `mongo` service on the compose network instead of localhost
+      MONGO_URI: mongodb://mongo:27017
+    volumes:
+      - airflow_data:/opt/airflow
+      - ./digivolution_dag.py:/opt/airflow/dags/digivolution_dag.py
+      - ./tasks:/opt/airflow/dags/tasks
+      - ./evolutions.py:/opt/airflow/dags/evolutions.py
+      - ./modes.py:/opt/airflow/dags/modes.py
+      - ./names.py:/opt/airflow/dags/names.py
+    ports:
+      - "8080:8080"
+    command: standalone
+
+volumes:
+  mongo_data:
+  airflow_data:
