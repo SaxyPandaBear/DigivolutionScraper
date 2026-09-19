@@ -1,9 +1,10 @@
+import contextlib
 import logging
 from unittest.mock import MagicMock, patch
 
 from pymongo import ReplaceOne
 
-from tasks.load_to_mongo import MONGO_COLLECTION, MONGO_DB, load_to_mongo
+from tasks.load_to_mongo import MONGO_DB, load_to_mongo
 
 # mongomock's bulk_write/ReplaceOne support hasn't caught up to this project's
 # pinned pymongo version (see tests/unit/test_reconcile_mongo.py for context),
@@ -53,10 +54,7 @@ def test_load_to_mongo_closes_client_even_if_bulk_write_raises():
     mock_client, mock_collection = _mock_client()
     mock_collection.bulk_write.side_effect = RuntimeError("boom")
 
-    with patch("tasks.load_to_mongo.MongoClient", return_value=mock_client):
-        try:
-            load_to_mongo.function([[{"_id": "agumon", "name": "Agumon"}]], logging.getLogger("test"))
-        except RuntimeError:
-            pass
+    with patch("tasks.load_to_mongo.MongoClient", return_value=mock_client), contextlib.suppress(RuntimeError):
+        load_to_mongo.function([[{"_id": "agumon", "name": "Agumon"}]], logging.getLogger("test"))
 
     mock_client.close.assert_called_once()

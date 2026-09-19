@@ -1,12 +1,11 @@
-import logging
 import itertools
+import logging
 
 from airflow.sdk import task
 
 from evolutions import next_evolutions
 from modes import digimon_modes, known_mode_variants
 from names import digimon_names
-
 
 # There is a set of digimon that don't have any evolution mappings to them (not even TCG), for whatever reason.
 skipped = {"burpmon", "yggdrasill7d6", "yoxtuyoxtumon"}
@@ -108,7 +107,7 @@ def validate_references(logger: logging.Logger):
 
     if len(unmapped) > 0:
         logger.warning("UNMATCHED DIGIMON MUST BE ADDRESSED.")
-        for batch in itertools.batched(unmapped, 8):
+        for batch in itertools.batched(unmapped, 8, strict=False):
             logger.warning(f"\t{list(batch)}")
         logger.warning("Exiting early to avoid compute...")
         raise ValueError

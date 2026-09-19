@@ -1,0 +1,21 @@
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+exclude = ["bin", "include", "lib", "pyvenv.cfg"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (unused imports/vars, undefined names, etc.)
+    "I",   # isort (import sorting)
+    "UP",  # pyupgrade (modern syntax)
+    "B",   # flake8-bugbear (common bug patterns)
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+
+[tool.ruff.lint.per-file-ignores]
+# hand-maintained Digimon evolution data - long lines are single dict entries
+# listing many evolutions, not something worth manually wrapping
+"evolutions.py" = ["E501"]

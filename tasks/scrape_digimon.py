@@ -8,7 +8,8 @@ from bs4 import BeautifulSoup
 
 from modes import known_mode_variants
 
-url_template = "https://digimon.net/reference_en/detail.php?directory_name="  # url param is the CASE SENSITIVE name of the digimon
+# url param is the CASE SENSITIVE name of the digimon
+url_template = "https://digimon.net/reference_en/detail.php?directory_name="
 img_domain = "https://digimon.net/"
 
 # Tags to look up
@@ -55,7 +56,12 @@ def clean_attribute(s: str) -> str:
     return s
 
 
-def _scrape_one(session: requests.Session, name: str, mappings: dict[str, dict[str, list[str]]], logger: logging.Logger) -> dict:
+def _scrape_one(
+    session: requests.Session,
+    name: str,
+    mappings: dict[str, dict[str, list[str]]],
+    logger: logging.Logger,
+) -> dict:
     digimon_url = f"{url_template}{name}"
     logger.info(f"Checking {digimon_url}...")
     r = session.get(digimon_url, timeout=REQUEST_TIMEOUT)

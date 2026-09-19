@@ -29,7 +29,7 @@ evolution_mappings = {
 # fan out in batches rather than one mapped task per Digimon, to keep the
 # number of task instances (and scheduler overhead) reasonable.
 BATCH_SIZE = 75
-digimon_name_batches = [list(batch) for batch in itertools.batched(digimon_names, BATCH_SIZE)]
+digimon_name_batches = [list(batch) for batch in itertools.batched(digimon_names, BATCH_SIZE, strict=False)]
 
 
 @dag(

@@ -108,6 +108,17 @@ source bin/activate
 pip install -r requirements.txt
 ```
 
+# Linting
+
+```bash
+source bin/activate
+ruff check .
+```
+
+Rule set and per-file exceptions are configured in `pyproject.toml` (pycodestyle, pyflakes, isort,
+pyupgrade, bugbear, comprehensions, simplify). CI runs this same command and fails the build before
+tests even run if it doesn't pass clean.
+
 # Testing
 
 ```bash

@@ -88,17 +88,15 @@ def test_scrape_one_parses_valid_page(requests_mock):
 def test_scrape_one_raises_when_content_missing(requests_mock):
     requests_mock.get(f"{url_template}invalidmon", text=NOT_FOUND_HTML)
 
-    with requests.Session() as session:
-        with pytest.raises(ValueError, match="Couldn't find data"):
-            _scrape_one(session, "invalidmon", EMPTY_MAPPINGS, logging.getLogger("test"))
+    with requests.Session() as session, pytest.raises(ValueError, match="Couldn't find data"):
+        _scrape_one(session, "invalidmon", EMPTY_MAPPINGS, logging.getLogger("test"))
 
 
 def test_scrape_one_raises_on_http_error(requests_mock):
     requests_mock.get(f"{url_template}brokenmon", status_code=500)
 
-    with requests.Session() as session:
-        with pytest.raises(requests.exceptions.RequestException):
-            _scrape_one(session, "brokenmon", EMPTY_MAPPINGS, logging.getLogger("test"))
+    with requests.Session() as session, pytest.raises(requests.exceptions.RequestException):
+        _scrape_one(session, "brokenmon", EMPTY_MAPPINGS, logging.getLogger("test"))
 
 
 # --- scrape_digimon (the batch task) ---
