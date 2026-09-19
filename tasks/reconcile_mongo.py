@@ -8,7 +8,7 @@ from pymongo import MongoClient
 # code can run locally (e.g. against the docker-compose MongoDB) or in
 # production against the real cluster.
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
-MONGO_DB = os.environ.get("MONGO_DB", "digimon")
+MONGO_DB = os.environ.get("MONGO_DB", "public")
 MONGO_COLLECTION = os.environ.get("MONGO_COLLECTION", "digimon")
 
 
