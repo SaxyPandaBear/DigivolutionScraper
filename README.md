@@ -8,15 +8,25 @@ official metadata, and then pushes that to MongoDB. This acts as a data pipeline
 # How it works
 
 The pipeline is a single Airflow DAG, `digivolution_scraper` (defined in `digivolution_dag.py`),
-made up of four tasks:
+made up of five tasks:
 
-1. **`validate_references`** (`tasks/validate_references.py`) — sanity-checks the hand-maintained
+1. **`check_registration_count`** (`tasks/check_registration_count.py`) — scrapes the "registered
+   Digimon" counter off the Encyclopedia's main reference page (adapted from
+   [DigimonQL's `registrations.py`](https://github.com/SaxyPandaBear/DigimonQL/blob/main/scraper/registrations.py))
+   and compares it against `len(names.py)`. A mismatch means the hand-maintained mapping data
+   itself is out of date, so it **fails the DAG** rather than scraping with known-incomplete data.
+   If they match, it checks that same registered count against how many documents are already in
+   MongoDB: if MongoDB already has all of them, it **short-circuits and skips every downstream
+   task** (`@task.short_circuit` - nothing changed, nothing to do); otherwise the DAG continues to
+   actually scrape.
+
+2. **`validate_references`** (`tasks/validate_references.py`) — sanity-checks the hand-maintained
    data before anything is scraped: no duplicate names in `names.py`, every name referenced in
    `evolutions.py` / `modes.py` is a real, known Digimon, and (as a soft check) reports how many
    Digimon still have no evolution mapping at all. Fails the DAG run early if the bootstrapping
    data is bad, rather than burning time scraping first.
 
-2. **`scrape_digimon`** (`tasks/scrape_digimon.py`) — fetches and cleans the official detail page
+3. **`scrape_digimon`** (`tasks/scrape_digimon.py`) — fetches and cleans the official detail page
    for each Digimon from `digimon.net`. Rather than one task per Digimon (which would mean one
    mapped task instance per Digimon), the ~1300 names in `names.py` are split into batches of 75
    and the task is dynamically mapped (`.expand()`) over those batches, so batches scrape in
@@ -29,17 +39,18 @@ made up of four tasks:
    `evolutions.py` and `modes.py`). The task retries up to 3 times with exponential backoff on
    failure.
 
-3. **`load_to_mongo`** (`tasks/load_to_mongo.py`) — collects every batch's output, flattens it into
+4. **`load_to_mongo`** (`tasks/load_to_mongo.py`) — collects every batch's output, flattens it into
    one list of documents, and upserts each one into the configured MongoDB collection by `_id`
    (the Digimon's directory name), which the collection relies on for uniqueness. Existing
    documents are replaced in place; new ones are inserted.
 
-4. **`reconcile_mongo`** (`tasks/reconcile_mongo.py`) — runs after the load completes and deletes
+5. **`reconcile_mongo`** (`tasks/reconcile_mongo.py`) — runs after the load completes and deletes
    any document in the collection whose `_id` wasn't produced by this run's scrape (e.g. a Digimon
    removed from `names.py` since the last run). Skips deletion entirely (with a warning) if the
    scrape produced zero documents, so a broken run can't wipe the collection.
 
-Task order: `validate_references` → `scrape_digimon` (mapped) → `load_to_mongo` → `reconcile_mongo`.
+Task order: `check_registration_count` → `validate_references` → `scrape_digimon` (mapped) →
+`load_to_mongo` → `reconcile_mongo`.
 
 The evolution/mode data in `evolutions.py` and `modes.py` is hand-maintained and unidirectional
 (only "evolves into" links are written by hand); the DAG derives the inverse "evolves from" /

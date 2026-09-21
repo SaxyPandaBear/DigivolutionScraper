@@ -1,5 +1,8 @@
 # locally stored, hardcoded names for Digimon in reference book
 digimon_names = [
+    "nosferamon",
+    "artiomon",
+    "atratusmon",
     "albatusmon",
     "heliosboamon",
     "habakirimon",

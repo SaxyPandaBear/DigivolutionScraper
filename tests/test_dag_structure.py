@@ -24,6 +24,7 @@ def test_dag_has_expected_tasks(dagbag):
     dag = dagbag.dags[DAG_ID]
 
     assert set(dag.task_ids) == {
+        "check_registration_count",
         "validate_references",
         "scrape_digimon",
         "load_to_mongo",
@@ -34,11 +35,13 @@ def test_dag_has_expected_tasks(dagbag):
 def test_dag_task_dependencies_run_in_expected_order(dagbag):
     dag = dagbag.dags[DAG_ID]
 
+    checked = dag.get_task("check_registration_count")
     validate = dag.get_task("validate_references")
     scrape = dag.get_task("scrape_digimon")
     load = dag.get_task("load_to_mongo")
     reconcile = dag.get_task("reconcile_mongo")
 
+    assert validate.task_id in checked.downstream_task_ids
     assert scrape.task_id in validate.downstream_task_ids
     assert load.task_id in scrape.downstream_task_ids
     assert reconcile.task_id in scrape.downstream_task_ids

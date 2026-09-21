@@ -7,6 +7,7 @@ from airflow.sdk import dag
 from evolutions import next_evolutions
 from modes import digimon_modes
 from names import digimon_names
+from tasks.check_registration_count import check_registration_count
 from tasks.load_to_mongo import load_to_mongo
 from tasks.reconcile_mongo import reconcile_mongo
 from tasks.scrape_digimon import scrape_digimon
@@ -49,6 +50,7 @@ digimon_name_batches = [list(batch) for batch in itertools.batched(digimon_names
     tags=["digimon"],
 )
 def populate_digivolutions():
+    checked = check_registration_count(digimon_names, logger)
     validate = validate_references(logger)
     scraped_digimon = scrape_digimon.partial(mappings=evolution_mappings, logger=logger).expand(
         names=digimon_name_batches
@@ -56,7 +58,7 @@ def populate_digivolutions():
     loaded = load_to_mongo(scraped_digimon, logger)
     reconciled = reconcile_mongo(scraped_digimon, logger)
 
-    validate >> scraped_digimon >> loaded >> reconciled
+    checked >> validate >> scraped_digimon >> loaded >> reconciled
 
 
 populate_digivolutions()

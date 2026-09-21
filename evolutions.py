@@ -1052,5 +1052,8 @@ next_evolutions: dict[str, list[str]] = {
     "examon": ["examon_x"],
     "sakuyamon": ["sakuyamon_x", "kuzuhamon"],
     "kuzuhamon": ["sakuyamon_x"],
-    "heliosboamon": ["albatusmon"]
+    "heliosboamon": ["albatusmon"],
+    "scourgechiropmon": ["nosferamon"],
+    "bearcatmon": ["artiomon"],
+    "monarchlizamon": ["atratusmon"],
 }
