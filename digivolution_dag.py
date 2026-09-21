@@ -49,14 +49,14 @@ digimon_name_batches = [list(batch) for batch in itertools.batched(digimon_names
     tags=["digimon"],
 )
 def populate_digivolutions():
-    t1 = validate_references(logger)
+    validate = validate_references(logger)
     scraped_digimon = scrape_digimon.partial(mappings=evolution_mappings, logger=logger).expand(
         names=digimon_name_batches
     )
     loaded = load_to_mongo(scraped_digimon, logger)
     reconciled = reconcile_mongo(scraped_digimon, logger)
 
-    t1 >> scraped_digimon >> loaded >> reconciled
+    validate >> scraped_digimon >> loaded >> reconciled
 
 
 populate_digivolutions()
