@@ -151,3 +151,47 @@ minutes and depends on the live site being reachable:
 ```bash
 pytest --run-integration tests/integration/
 ```
+
+# Sourcing the data
+
+## Adding a new Digimon reference
+Occassionally, there will be a new Digimon that gets added to the Encyclopedia (Reference Book). 
+The directory name/ID for the new Digimon must be added to the `names.py` list, and
+then the data pipeline needs to be rerun. The first step of the data pipeline validates
+that the references in the `names.py` are up-to-date and has the entire set of Digimon
+names that should be scraped for. If this condition is not met, the data pipeline fails
+loudly.
+
+Note that the list of names supplied may create an ordering issue with the output JSON array, but ultimately that
+doesn't matter for the destination because MongoDB is indexing on the `_id` field, and not the order of the data.
+
+## Digimon Info
+* [Digimon Reference Book](https://digimon.net/reference_en/)
+
+## Evolution Info
+The evolution information that is written in `evolutions.py` is painstakingly handwritten by me. 
+No AI could do this work. I have to map digivolutions across canons, dropping the ones that aren't present
+in the Encyclopedia, and also translating some from their English localized names in order to properly reference
+them.
+For this, I am excluding (to my best ability) pendulum evolutions and most warp evolutions.
+I am also ignoring X Antibody characters for the time being. For some evolutions that are
+canonically warp evolutions, such as in the various anime, I've reasoned the appropriate
+evolution chain. For example, although technically Gekkomon warp digivolves into Atratusmon
+in the Beatbreak anime, we can reason that logically, Monarchlizamon, Gekkomon's Ultimate 
+form, would subsequently evolve into Atratusmon as a Mega, thus for the purposes of this
+project, I've made that connection rather than the canonical warp evolution shown in the
+anime. There is potential room to improve this by including warp evolutions, but I don't know
+if these should be differentiated from regular evolutions, and if so, what purpose they'd serve.
+
+Wikimon as a source includes every possible evolution, so it is feasible to scrape
+that site to generate the evolution mappings. That being said, some of them are
+technically correct but I just personally disagree. For example, for the protagonist
+partners in Digimon Beatbreak, they list the Ultimate forms as warp evolutions: https://wikimon.net/Scourge_Chiropmon
+
+* [Digimon Story: Time Stranger](https://www.grindosaur.com/en/games/digimon-story-time-stranger/digimon)
+    * Completed ✅
+* [Digimon World: Next Order](https://www.grindosaur.com/en/games/digimon-world-next-order/digimon)
+    * Completed ✅
+* [Digimon Story: Cyber Sleuth](https://www.grindosaur.com/en/games/digimon-story-cyber-sleuth/digimon)
+    * Completed ✅
+* [Wikimon](https://wikimon.net/) to fill the gaps
