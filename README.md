@@ -58,14 +58,15 @@ mode-variant-of relationships automatically at parse time via `derive_inverse_re
 
 # Configuration
 
-`load_to_mongo` reads its MongoDB connection from environment variables, so the same DAG code
-runs unmodified locally or in production:
+The tasks read their external endpoints from environment variables, so the same DAG code runs
+unmodified locally, in tests, or in production:
 
 | Variable            | Default                     | Purpose                              |
 |----------------------|------------------------------|---------------------------------------|
 | `MONGO_URI`          | `mongodb://localhost:27017` | Full MongoDB connection string       |
-| `MONGO_DB`           | `digimon`                   | Target database name                 |
+| `MONGO_DB`           | `public`                    | Target database name                 |
 | `MONGO_COLLECTION`   | `digimon`                   | Target collection name (upsert + reconcile) |
+| `DIGIMON_BASE_URL`   | `https://digimon.net`       | Site to scrape; tests point this at a local fake |
 
 # Running
 
@@ -134,23 +135,36 @@ tests even run if it doesn't pass clean.
 
 # Testing
 
+None of the tests touch the real `digimon.net`. Integration tests run against
+`tests/fake_site/server.py`, a small standard-library stand-in that serves the two pages the DAG
+reads (the reference index with its registered-count counter, and a detail page per name in
+`names.py`). The pipeline is pointed at it via the `DIGIMON_BASE_URL` environment variable
+(default `https://digimon.net`). Tests also run against a throwaway Airflow home (see
+`conftest.py`), never your `~/airflow`.
+
+There are three tiers:
+
 ```bash
 source bin/activate
-pytest
+pytest tests/unit tests/test_dag_structure.py   # fast, no Docker - CI "Unit tests" job
+pytest tests/integration/test_pipeline.py       # ~1.5 min, needs Docker - CI "Pipeline integration test" job
+pytest --run-integration tests/integration/test_end_to_end.py  # several minutes, needs Docker - opt-in
 ```
 
-Runs the fast suite (`tests/unit/` and `tests/test_dag_structure.py`) — pure-function tests, task-level
-tests against mocked HTTP responses (`requests_mock`) and an in-memory MongoDB (`mongomock`), and a
-`DagBag`-based check that `digivolution_dag.py` imports cleanly with the expected tasks and
-dependency edges. No network access or Docker required; this is what should run on every change.
+- **Unit / structure** — pure-function tests, task-level tests against mocked HTTP (`requests_mock`)
+  and an in-memory MongoDB (`mongomock`), and a `DagBag` check that the DAG imports cleanly with
+  the expected tasks and dependency edges.
+- **Pipeline** — runs the whole DAG in-process with `dag.test()` (every task, the dynamic mapping,
+  XCom and the short-circuit) against the fake site and a real MongoDB container via
+  `testcontainers`. Covers all three `check_registration_count` outcomes: full scrape, skip when
+  MongoDB is already up to date, and fail fast when `names.py` is out of sync.
+- **End to end** — builds the image and runs `scripts/run_dag_once.sh` (the same entrypoint the
+  Railway cron job uses) in the docker-compose stack, with `docker-compose.test.yml` swapping in
+  the fake site. This is the only tier that exercises the real api-server/scheduler process
+  model. It uses the base compose file's container names and ports, so stop any locally running
+  stack first.
 
-A separate, slow end-to-end test drives the real `docker-compose` stack against the live
-`digimon.net` site and asserts the resulting Mongo collection. It's opt-in since it takes a few
-minutes and depends on the live site being reachable:
-
-```bash
-pytest --run-integration tests/integration/
-```
+A bare `pytest` runs the first two tiers.
 
 # Sourcing the data
 

@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import mongomock
 import pytest
+from airflow.sdk.exceptions import AirflowFailException
 
 from tasks.check_registration_count import (
     MONGO_COLLECTION,
@@ -33,7 +34,7 @@ def test_raises_when_names_py_is_out_of_sync_with_the_site(requests_mock, mongo_
     requests_mock.get(REFERENCE_URL, text=REFERENCE_INDEX_HTML)
     names = ["digimon"] * 1000  # deliberately not 1317
 
-    with pytest.raises(ValueError, match="names.py only has 1000"):
+    with pytest.raises(AirflowFailException, match="names.py only has 1000"):
         check_registration_count.function(names, logging.getLogger("test"))
 
 
