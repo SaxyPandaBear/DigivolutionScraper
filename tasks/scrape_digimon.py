@@ -1,4 +1,5 @@
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
 
@@ -8,9 +9,12 @@ from bs4 import BeautifulSoup
 
 from modes import known_mode_variants
 
+# overridable so integration tests can point the pipeline at a local fake site
+DIGIMON_BASE_URL = os.environ.get("DIGIMON_BASE_URL", "https://digimon.net").rstrip("/")
+
 # url param is the CASE SENSITIVE name of the digimon
-url_template = "https://digimon.net/reference_en/detail.php?directory_name="
-img_domain = "https://digimon.net/"
+url_template = f"{DIGIMON_BASE_URL}/reference_en/detail.php?directory_name="
+img_domain = f"{DIGIMON_BASE_URL}/"
 
 # Tags to look up
 parent_tag = "p-ref"  # encompassing class tag

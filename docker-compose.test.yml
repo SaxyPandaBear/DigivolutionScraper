@@ -1,0 +1,25 @@
+# Overlay for integration tests: swaps the real digimon.net for a local fake
+# (tests/fake_site/server.py) so the full container stack can run end to end
+# without touching the real site. Use together with the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml ...
+services:
+  fake-digimon-site:
+    image: python:3.13-slim
+    working_dir: /site
+    command: ["python", "server.py", "8000"]
+    volumes:
+      - ./tests/fake_site/server.py:/site/server.py:ro
+      - ./names.py:/site/names.py:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/reference_en/')"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  airflow:
+    depends_on:
+      fake-digimon-site:
+        condition: service_healthy
+    environment:
+      DIGIMON_BASE_URL: http://fake-digimon-site:8000

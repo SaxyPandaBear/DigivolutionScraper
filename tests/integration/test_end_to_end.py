@@ -1,96 +1,76 @@
 """
-Opt-in, slow end-to-end test: brings up the full docker-compose stack (mongo +
-postgres + airflow), triggers a real DAG run against the live digimon.net
-site, waits for it to finish, and asserts the data landed in Mongo.
+Opt-in, slow end-to-end test of the deployment's actual process model:
+builds the image and runs scripts/run_dag_once.sh - the same entrypoint the
+Railway cron job uses - in the docker-compose stack (postgres + mongo +
+airflow), with digimon.net swapped for a local fake via
+docker-compose.test.yml. No network access to the real site.
 
-Not run by default - requires Docker and takes a few minutes. Run explicitly with:
+Complements test_pipeline.py, which runs the DAG in-process and so can't catch
+problems in how the api-server/scheduler processes are started and wired up.
+
+Not run by default - builds the image and takes a few minutes:
 
     pytest --run-integration tests/integration/test_end_to_end.py
+
+Uses the base file's fixed container names and host ports, so stop a locally
+running `docker compose up` stack first.
 """
 
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
+from pymongo import MongoClient
+
+from names import digimon_names
 
 pytestmark = pytest.mark.integration
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-DAG_ID = "digivolution_scraper"
-AIRFLOW_READY_TIMEOUT = 180
-DAG_RUN_TIMEOUT = 600
-EXPECTED_DIGIMON_COUNT = 1317
+COMPOSE = ["docker", "compose", "-f", "docker-compose.yml", "-f", "docker-compose.test.yml"]
+RUN_TIMEOUT_SECONDS = 900
 
 
-def _compose(*args, check=True):
+def _compose(*args, check=True, timeout=None):
     return subprocess.run(
-        ["docker", "compose", *args],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=check,
+        [*COMPOSE, *args], cwd=REPO_ROOT, capture_output=True, text=True, check=check, timeout=timeout
     )
 
 
-def _airflow_cli(*args, check=True):
-    return _compose("exec", "-T", "airflow", "airflow", *args, check=check)
-
-
-def _wait_for_airflow_ready():
-    deadline = time.time() + AIRFLOW_READY_TIMEOUT
-    while time.time() < deadline:
-        logs = _compose("logs", "airflow", check=False).stdout
-        if "Airflow is ready" in logs:
-            return
-        time.sleep(5)
-    raise TimeoutError(f"Airflow did not report ready within {AIRFLOW_READY_TIMEOUT}s")
-
-
-def _latest_run_state() -> tuple[str, str]:
-    result = _airflow_cli("dags", "list-runs", DAG_ID, "-o", "plain")
-    lines = [line for line in result.stdout.splitlines() if line.startswith(DAG_ID)]
-    if not lines:
-        raise RuntimeError(f"No dag runs found for {DAG_ID} yet")
-    fields = lines[-1].split()
-    return fields[1], fields[2]  # run_id, state
-
-
-def _wait_for_terminal_state() -> str:
-    deadline = time.time() + DAG_RUN_TIMEOUT
-    while time.time() < deadline:
-        _, state = _latest_run_state()
-        if state in ("success", "failed"):
-            return state
-        time.sleep(10)
-    raise TimeoutError(f"DAG run did not reach a terminal state within {DAG_RUN_TIMEOUT}s")
+def _run_dag_once():
+    return _compose(
+        "run", "--rm", "airflow", "bash", "/opt/airflow/scripts/run_dag_once.sh",
+        check=False, timeout=RUN_TIMEOUT_SECONDS,
+    )
 
 
 @pytest.fixture(scope="module")
-def running_stack():
-    _compose("up", "-d", "--build")
+def stack():
+    _compose("build", "airflow")
     try:
-        _wait_for_airflow_ready()
         yield
     finally:
-        _compose("down", "-v")
+        _compose("down", "-v", check=False)
 
 
-def test_full_dag_run_scrapes_the_real_site_and_loads_mongo(running_stack):
-    _airflow_cli("dags", "trigger", DAG_ID)
-
-    final_state = _wait_for_terminal_state()
-    assert final_state == "success"
-
-    from pymongo import MongoClient
-
+@pytest.fixture
+def collection(stack):
     client = MongoClient("mongodb://localhost:27017")
-    try:
-        count = client["digimon"]["digimon"].count_documents({})
-        sample = client["digimon"]["digimon"].find_one({"_id": "agumon"})
-    finally:
-        client.close()
+    yield client["public"]["digimon"]
+    client.close()
 
-    assert count == EXPECTED_DIGIMON_COUNT
-    assert sample is not None
-    assert sample["name"] == "Agumon"
+
+def test_cron_entrypoint_scrapes_into_mongo_then_short_circuits_on_rerun(collection):
+    first = _run_dag_once()
+    assert first.returncode == 0, first.stdout[-5000:] + first.stderr[-5000:]
+    assert "Run finished: success" in first.stdout
+    assert collection.count_documents({}) == len(digimon_names)
+    assert collection.find_one({"_id": "agumon"})["name"] == "Agumon"
+
+    # nothing changed on the (fake) site, so the second run should skip
+    # straight past scraping - and still exit 0 for the cron job
+    second = _run_dag_once()
+    assert second.returncode == 0, second.stdout[-5000:] + second.stderr[-5000:]
+    assert "nothing to do" in second.stdout
+    assert "Run finished: success" in second.stdout
+    assert collection.count_documents({}) == len(digimon_names)

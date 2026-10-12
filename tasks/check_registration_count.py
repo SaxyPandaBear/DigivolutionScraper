@@ -5,10 +5,12 @@ from datetime import timedelta
 import bs4
 import requests
 from airflow.sdk import task
+from airflow.sdk.exceptions import AirflowFailException
 from pymongo import MongoClient
 
 # adapted from https://github.com/SaxyPandaBear/DigimonQL/blob/main/scraper/registrations.py
-REFERENCE_URL = "https://digimon.net/reference_en/"
+DIGIMON_BASE_URL = os.environ.get("DIGIMON_BASE_URL", "https://digimon.net").rstrip("/")
+REFERENCE_URL = f"{DIGIMON_BASE_URL}/reference_en/"
 REQUEST_TIMEOUT = (5, 15)  # (connect, read) seconds
 
 # same Mongo config surface as load_to_mongo.py/reconcile_mongo.py, so this
@@ -57,7 +59,8 @@ def check_registration_count(names: list[str], logger: logging.Logger) -> bool:
     known_count = len(names)
 
     if registered_count != known_count:
-        raise ValueError(
+        # not transient - retrying (with backoff) would only delay the failure
+        raise AirflowFailException(
             f"The Digimon Encyclopedia reports {registered_count} registered Digimon, but "
             f"names.py only has {known_count} known names. The mapping data (names.py, "
             f"evolutions.py, modes.py) needs to be updated manually before this DAG can run."
