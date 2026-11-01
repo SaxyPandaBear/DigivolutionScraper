@@ -19,6 +19,24 @@ MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.environ.get("MONGO_DB", "public")
 MONGO_COLLECTION = os.environ.get("MONGO_COLLECTION", "digimon")
 
+# Slack or Discord incoming webhook; unset (e.g. locally/in tests) means no
+# notification is sent. Supplements Railway's own failure alert, which can't
+# say *why* the run failed.
+NOTIFY_WEBHOOK_URL = os.environ.get("NOTIFY_WEBHOOK_URL")
+
+
+def _notify(message: str, logger: logging.Logger) -> None:
+    if not NOTIFY_WEBHOOK_URL:
+        logger.info("NOTIFY_WEBHOOK_URL not set - skipping notification.")
+        return
+    is_discord = "discord.com/api/webhooks" in NOTIFY_WEBHOOK_URL or "discordapp.com/api/webhooks" in NOTIFY_WEBHOOK_URL
+    payload = {"content": message} if is_discord else {"text": message}
+    try:
+        requests.post(NOTIFY_WEBHOOK_URL, json=payload, timeout=REQUEST_TIMEOUT).raise_for_status()
+    except requests.exceptions.RequestException as e:
+        # never let a notification problem mask the failure being reported
+        logger.warning(f"Failed to send notification: {e}")
+
 
 def _scrape_registered_count(logger: logging.Logger) -> int:
     r = requests.get(REFERENCE_URL, timeout=REQUEST_TIMEOUT)
@@ -59,12 +77,14 @@ def check_registration_count(names: list[str], logger: logging.Logger) -> bool:
     known_count = len(names)
 
     if registered_count != known_count:
-        # not transient - retrying (with backoff) would only delay the failure
-        raise AirflowFailException(
-            f"The Digimon Encyclopedia reports {registered_count} registered Digimon, but "
-            f"names.py only has {known_count} known names. The mapping data (names.py, "
-            f"evolutions.py, modes.py) needs to be updated manually before this DAG can run."
+        message = (
+            f"DigivolutionScraper needs a manual reference update (not a bug): the Digimon Encyclopedia "
+            f"reports {registered_count} registered Digimon, but names.py has {known_count}. Update "
+            f"names.py, evolutions.py and modes.py, then redeploy. The run was failed on purpose before scraping."
         )
+        _notify(message, logger)
+        # not transient - retrying (with backoff) would only delay the failure
+        raise AirflowFailException(message)
 
     logger.info(f"names.py is up to date with the Encyclopedia's {registered_count} registered Digimon.")
 

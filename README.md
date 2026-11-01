@@ -67,6 +67,7 @@ unmodified locally, in tests, or in production:
 | `MONGO_DB`           | `public`                    | Target database name                 |
 | `MONGO_COLLECTION`   | `digimon`                   | Target collection name (upsert + reconcile) |
 | `DIGIMON_BASE_URL`   | `https://digimon.net`       | Site to scrape; tests point this at a local fake |
+| `NOTIFY_WEBHOOK_URL` | unset (no notification)     | Slack or Discord incoming webhook. When names.py is out of date, `check_registration_count` posts a message saying a manual reference update is needed, then still fails the run (so Railway's own failure alert fires too) |
 
 # Running
 
